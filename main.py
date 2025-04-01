@@ -6,6 +6,7 @@ import os
 import psutil
 import re
 import openpyxl
+import customtkinter as ctk
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -15,14 +16,19 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException
+from datetime import datetime
 
 """
 Automação de mensagem padrão de prorrogação de contrato de experiencia no Onvio Messenger.
-
 """
+
+# Configuração do tema do customtkinter
+ctk.set_appearance_mode("System")  # Modos: "System" (padrão), "Dark", "Light"
+ctk.set_default_color_theme("blue")  # Temas: "blue" (padrão), "green", "dark-blue"
 
 # Variável global para controlar o cancelamento do processamento
 cancelar = False
+log_file_path = None
 
 #FUNÇÕES DO PROGRAMA
 def focar_barra_endereco_e_navegar(driver, termo_busca):
@@ -369,7 +375,9 @@ def mensagemPadrao():
         return
     
     # # Mensagem padrão
-    # mensagem = f"Boa tarde!  Espero que esteja bem. O contrato de experiência de {pessoa} vence em {data}. Gostaríamos de saber se haverá prorrogação.  Caso não tenhamos um retorno, consideraremos a prorrogação automática. Agradeço a atenção!"
+    # mensagem = f"Mensagem de Test\n"
+    # mensagem += " \n"
+    # mensagem += "Agradeçomos pela sua atenção e colaboração."
     
     mensagem = f"Prezado cliente,\n"
     mensagem += " \n"
@@ -413,7 +421,7 @@ def mensagemPadrao():
     return mensagem
 
 
-def ler_dados_excel(caminho_excel):
+def ler_dados_excel(caminho_excel, linha_inicial=2):
     try:
         # Carrega o workbook
         wb = openpyxl.load_workbook(caminho_excel)
@@ -424,8 +432,8 @@ def ler_dados_excel(caminho_excel):
         # Lista para armazenar os dados
         dados = {}
          
-        # Itera pelas linhas da planilha
-        for row in sheet.iter_rows(min_row=2, values_only=True):  # Começa da segunda linha, assumindo que a primeira é cabeçalho
+        # Itera pelas linhas da planilha a partir da linha inicial
+        for row in sheet.iter_rows(min_row=linha_inicial, values_only=True):
             if row and len(row) >= 4:  # Verifica se a linha tem pelo menos 4 colunas
                 codigo, pessoas, nome_contato, nome_grupo = row[:4]
                 
@@ -463,6 +471,17 @@ def extrair_cod_nome_contatos_e_grupos(dados):
     
     return codigo, empresas, nome_contato, nome_grupo
 
+def inicializar_arquivo_log():
+    global log_file_path
+    log_dir = os.path.join(os.path.expanduser('~'), 'Documents', 'AutoMessenger_Logs')
+    os.makedirs(log_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file_path = os.path.join(log_dir, f"automessenger_log_{timestamp}.txt")
+    
+    with open(log_file_path, 'w', encoding='utf-8') as f:
+        f.write(f"=== Log de Execução - AutoMessenger - {timestamp} ===\n\n")
+    
+    return log_file_path
         
 # Função para selecionar o arquivo Excel
 def selecionar_excel():
@@ -481,26 +500,59 @@ def iniciar_processamento():
     
     excel = caminho_excel.get()
     if excel:
+        try:
+            linha_inicial = int(entrada_linha_inicial.get())
+            if linha_inicial < 2:
+                messagebox.showwarning("Atenção", "A linha inicial deve ser pelo menos 2 (para pular o cabeçalho).")
+                return
+        except ValueError:
+            messagebox.showwarning("Atenção", "A linha inicial deve ser um número inteiro.")
+            return
+            
         atualizar_log("Iniciando processamento...", cor="azul")
-        botao_iniciar.config(state=tk.DISABLED)  # Desabilitar o botão para evitar múltiplos cliques
-        thread = threading.Thread(target=processar_dados, args=(excel,))
+        botao_iniciar.configure(state="disabled")  # Desabilitar o botão para evitar múltiplos cliques
+        
+        # Inicializa o arquivo de log
+        inicializar_arquivo_log()
+        atualizar_log(f"Arquivo de log criado em: {log_file_path}")
+        
+        thread = threading.Thread(target=processar_dados, args=(excel, linha_inicial))
         thread.start()
     else:
         messagebox.showwarning("Atenção", "Por favor, selecione o arquivo Excel.")
 
 # Função do seu código que já está pronta para processar os dados
-def processar_dados(excel):
-    global cancelar
+def processar_dados(excel, linha_inicial):
+    global cancelar, progresso
 
     url_desejada = "https://app.gestta.com.br/attendance/#/chat/contact-list"
     driver = abrir_chrome_com_url(url_desejada)
     
     # Arquivo Excel
     caminho_excel = excel
-    dados = ler_dados_excel(caminho_excel)
+
+# Obter o número total de linhas no Excel
+    try:
+        wb = openpyxl.load_workbook(caminho_excel)
+        sheet = wb.active
+        total_linhas_excel = sheet.max_row - linha_inicial + 1  # Subtrair 1 para o cabeçalho
+        atualizar_log(f"Total de linhas no Excel: {total_linhas_excel}")
+    except Exception as e:
+        atualizar_log(f"Erro ao obter o total de linhas do Excel: {str(e)}", cor="vermelho")
+        total_linhas_excel = 0
+
+    dados = ler_dados_excel(caminho_excel, linha_inicial)
+    if not dados:
+        atualizar_log("Nenhum dado para processar.", cor="vermelho")
+        return
     codigos, empresas, nome_contatos, nome_grupos = extrair_cod_nome_contatos_e_grupos(dados)
-    # print(codigo)
-      
+    
+    # Configuração da barra de progresso
+    total_contatos = len(codigos)
+    linha_atual_rel = linha_inicial - 2  # Considerando que linha 2 é a primeira linha de dados
+
+    atualizar_log(f"Processando {total_contatos} contatos a partir da linha {linha_inicial} de {total_linhas_excel + 1} totais")
+    
     if not driver:
         atualizar_log("Falha ao abrir o Chrome.", cor="vermelho")
         return
@@ -512,14 +564,29 @@ def processar_dados(excel):
         
 
         #RODAR NOME DE CONTATOS E GRUPOS
-        for codigo, empresa, nome_contato, nome_grupo in zip(codigos, empresas, nome_contatos, nome_grupos):
+        for i, (codigo, empresa, nome_contato, nome_grupo) in enumerate(zip(codigos, empresas, nome_contatos, nome_grupos)):
             if cancelar:
                 atualizar_log("Processamento cancelado!", cor="azul")
                 return 
             
-            atualizar_log(f"\nProcessando contato da pessoa {codigo} - {empresa}: Contato: {nome_contato}, Grupo: {nome_grupo}\n", cor="azul")
+            # Atualiza a barra de progresso em relação ao total do Excel
+            linha_atual = linha_inicial + i
+            if total_linhas_excel > 0:
+                porcentagem = ((i + 1) / total_contatos) * 100
+                
+                atualizar_progresso(porcentagem, f"Linha {linha_atual} de {total_linhas_excel + linha_inicial - 1}")
+                
+            else:
+                # Fallback se não conseguiu obter o total de linhas
+                porcentagem = ((i + 1) / total_contatos) * 100
+                atualizar_progresso(porcentagem, f"{i + 1}/{total_contatos}")
+            
+            atualizar_log(f"\nProcessando linha {linha_atual}/{total_linhas_excel + linha_inicial - 1}: {codigo} - {empresa}: Contato: {nome_contato}, Grupo: {nome_grupo}\n", cor="azul")
 
-            # atualizar_log(f"\nProcessando contato da pessoa {codigo} - {pessoa_individual}\n", cor="azul")
+            # Gravar posição atual no log para recuperação
+            with open(log_file_path, 'a', encoding='utf-8') as f:
+                f.write(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Processando código: {codigo}, empresa: {empresa}, linha Excel: {linha_atual}\n")
+                
             mensagem = mensagemPadrao()
                     
             if nome_contato.upper() != "NONE":
@@ -548,8 +615,14 @@ def processar_dados(excel):
                                     return
 
                                 atualizar_log(f"\nAviso enviado para {nome_contato}, {codigo} - {empresa}.\n", cor="verde")
+                                # Registra o sucesso no log
+                                with open(log_file_path, 'a', encoding='utf-8') as f:
+                                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✓ Mensagem enviada com sucesso para {nome_contato}\n")
                             else:
                                 atualizar_log(f"\nFalha ao enviar mensagem para {nome_contato}\n", cor="vermelho")                       
+                                # Registra a falha no log
+                                with open(log_file_path, 'a', encoding='utf-8') as f:
+                                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✗ FALHA ao enviar mensagem para {nome_contato}\n")
                                 
                             time.sleep(5)  # Espera um pouco antes de processar o próximo contato
                                 
@@ -593,9 +666,15 @@ def processar_dados(excel):
                                     
     
                                     atualizar_log(f"\nAviso enviado para {nome_contato}, {codigo} - {empresa}.\n", cor="verde")
+                                    # Registra o sucesso no log
+                                    with open(log_file_path, 'a', encoding='utf-8') as f:
+                                        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✓ Mensagem enviada com sucesso para {nome_contato} (via grupo)\n")
                                     
                                 else:
                                     atualizar_log(f"Falha ao enviar mensagem para {nome_contato}", cor="vermelho")                       
+                                    # Registra a falha no log
+                                    with open(log_file_path, 'a', encoding='utf-8') as f:
+                                        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✗ FALHA ao enviar mensagem para {nome_contato}\n")
                                     
                                 time.sleep(5)  # Espera um pouco antes de processar o próximo contato
                                     
@@ -633,8 +712,14 @@ def processar_dados(excel):
                             # Foca na barra de mensagem e envia
                             if focar_barra_mensagem_enviar(driver, mensagem):
                                 atualizar_log(f"\nAviso enviado para {nome_grupo}, {codigo} - {empresa}.\n", cor="verde")
+                                # Registra o sucesso no log
+                                with open(log_file_path, 'a', encoding='utf-8') as f:
+                                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✓ Mensagem enviada com sucesso para o grupo {nome_grupo}\n")
                             else:
                                 atualizar_log(f"Falha ao enviar mensagem para {nome_grupo}", cor="vermelho")
+                                # Registra a falha no log
+                                with open(log_file_path, 'a', encoding='utf-8') as f:
+                                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✗ FALHA ao enviar mensagem para o grupo {nome_grupo}\n")
                                 
                             time.sleep(5)  # Espera um pouco antes de processar o próximo contato
                                 
@@ -667,8 +752,14 @@ def processar_dados(excel):
                         # Foca na barra de mensagem e envia
                         if focar_barra_mensagem_enviar(driver, mensagem):
                             atualizar_log(f"\nAviso enviado para {nome_grupo}, {codigo} - {empresa}.\n", cor="verde")
+                            # Registra o sucesso no log
+                            with open(log_file_path, 'a', encoding='utf-8') as f:
+                                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✓ Mensagem enviada com sucesso para {nome_grupo} (via contato)\n")
                         else:
                             atualizar_log(f"Falha ao enviar mensagem para {nome_grupo}", cor="vermelho")
+                            # Registra a falha no log
+                            with open(log_file_path, 'a', encoding='utf-8') as f:
+                                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✗ FALHA ao enviar mensagem para {nome_grupo}\n")
                             
                         time.sleep(5)  # Espera um pouco antes de processar o próximo contato
                             
@@ -684,26 +775,41 @@ def processar_dados(excel):
                 atualizar_log("\nContato Inexistente!", cor="vermelho")
                 atualizar_log(f"Pulando pessoa {codigo} - {empresa}", cor="azul")
                 atualizar_log("Pulando em 3 Seg...")
+                # Registra o pulo no log
+                with open(log_file_path, 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ⚠ Contato inexistente para {codigo} - {empresa}, pulando...\n")
                 time.sleep(3)   
                 
-                            
+        # Atualiza a barra de progresso para 100% ao finalizar
+        atualizar_progresso(100, f"Concluído - {total_linhas_excel + linha_inicial - 1}/{total_linhas_excel + linha_inicial - 1}")
+        with open(log_file_path, 'a', encoding='utf-8') as f:
+            f.write(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✓ PROCESSAMENTO FINALIZADO COM SUCESSO!\n")
             
-
         atualizar_log("Processamento finalizado com sucesso!")
         finalizar_programa()
     except Exception as e:
         atualizar_log(f"Ocorreu um erro inesperado: {str(e)}", cor="vermelho")
+        # Registra o erro no log
+        with open(log_file_path, 'a', encoding='utf-8') as f:
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✗ ERRO: {str(e)}\n")
+            
+        botao_iniciar.configure(state="normal")
     
-
-    
-    
+# Função para atualizar a barra de progresso
+def atualizar_progresso(valor, texto=""):
+    # Normalizar o valor para o intervalo [0, 1] que a barra de progresso espera
+    progresso.set(valor / 100)
+    progresso_texto.configure(text=texto)
+    janela.update_idletasks()  # Atualiza a interface
     
 # Função para cancelar o processamento
 def cancelar_processamento():
     global cancelar
     cancelar = True
     atualizar_log("Cancelando processamento...", cor="azul")
-    botao_fechar.config(state=tk.NORMAL)  # Habilitar o botão de fechar o programa
+    with open(log_file_path, 'a', encoding='utf-8') as f:
+        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ⚠ Processamento CANCELADO pelo usuário\n")
+    botao_fechar.configure(state="normal")  # Habilitar o botão de fechar o programa
 
 # Função para cancelar e fechar o programa
 def fechar_programa():
@@ -712,81 +818,149 @@ def fechar_programa():
 # Função para finalizar o programa com uma mensagem
 def finalizar_programa():
     messagebox.showinfo("Processo Finalizado", "O processamento foi concluído com sucesso!")
-    botao_fechar.config(state=tk.NORMAL)  # Habilitar o botão de fechar o programa
-    botao_iniciar.config(state=tk.NORMAL)  # Reabilitar o botão de iniciar
+    botao_fechar.configure(state="normal")  # Habilitar o botão de fechar o programa
+    botao_iniciar.configure(state="normal")  # Reabilitar o botão de iniciar
+
+# Função para abrir o arquivo de log
+def abrir_log():
+    global log_file_path
+    if log_file_path and os.path.exists(log_file_path):
+        os.startfile(log_file_path)
+    else:
+        messagebox.showinfo("Log não disponível", "Não há arquivo de log disponível para esta sessão.")
 
 # Função para atualizar o log na área de texto
 def atualizar_log(mensagem, cor=None):
-    log_text.config(state=tk.NORMAL)  # Habilitar edição temporária
+    log_text.configure(state="normal")  # Habilitar edição temporária
+    
+    # Obter a hora atual
+    timestamp = datetime.now().strftime("[%H:%M:%S] ")
+    
+    # Inserir timestamp e mensagem
     if cor == "vermelho":
-        log_text.insert(tk.END, mensagem + "\n", "vermelho")  # Inserir nova mensagem com tag 'vermelho'
+        log_text.insert("end", timestamp, "timestamp")
+        log_text.insert("end", mensagem + "\n", "vermelho")
     elif cor == "verde":
-        log_text.insert(tk.END, mensagem + "\n", "verde")  # Inserir nova mensagem com tag 'verde'
+        log_text.insert("end", timestamp, "timestamp")
+        log_text.insert("end", mensagem + "\n", "verde")
     elif cor == "azul":
-        log_text.insert(tk.END, mensagem + "\n", "azul")
+        log_text.insert("end", timestamp, "timestamp")
+        log_text.insert("end", mensagem + "\n", "azul")
     else:
-        log_text.insert(tk.END, mensagem + "\n")  # Inserir nova mensagem sem tag
-    log_text.config(state=tk.DISABLED)  # Desabilitar edição novamente
-    log_text.see(tk.END)  # Scroll automático para a última linha
+        log_text.insert("end", timestamp, "timestamp")
+        log_text.insert("end", mensagem + "\n")
+    
+    log_text.configure(state="disabled")  # Desabilitar edição novamente
+    log_text.see("end")  # Scroll automático para a última linha
+    
+    # Se o arquivo de log já existir, adiciona a mensagem também
+    if log_file_path and os.path.exists(log_file_path):
+        with open(log_file_path, 'a', encoding='utf-8') as f:
+            f.write(f"{timestamp}{mensagem}\n")
 
-# Função para configurar a tag de cor no log
-def configurar_tags_log():
-    log_text.tag_config("vermelho", foreground="red")  # Configura a cor vermelha para a tag 'vermelho'
-    log_text.tag_config("verde", foreground="green")  # Configura a cor vermelha para a tag 'verde'
-    log_text.tag_config("azul", foreground="blue") # Configura a cor azul para a tag 'azul'
 # Função main para encapsular a lógica do programa
 def main():
-    global janela, caminho_pasta, caminho_excel, botao_fechar, botao_iniciar, log_text
+    global janela, caminho_excel, botao_fechar, botao_iniciar, log_text, progresso, progresso_texto, entrada_linha_inicial
 
-    
-
-    # Criar a janela principal
-    janela = tk.Tk()
-    janela.title("Prorrogação Contrato Experiência AutoMessenger")
-    janela.geometry("600x400")
-    janela.resizable(False, False)
+    # Criar a janela principal com customtkinter
+    janela = ctk.CTk()
+    janela.title("Aviso All Clientes AutoMessenger")
+    janela.geometry("700x600")
+    janela.resizable(True, True)
 
     # Variáveis para armazenar os caminhos
-    caminho_pasta = tk.StringVar()
-    caminho_excel = tk.StringVar()
+    caminho_excel = ctk.StringVar()
+    progresso = ctk.DoubleVar()
 
-    # Frame para seleção de pasta e arquivo
-    frame_selecao = tk.Frame(janela)
-    frame_selecao.pack(pady=10)
+    # Frame para o título
+    frame_titulo = ctk.CTkFrame(janela)
+    frame_titulo.pack(fill="x", padx=10, pady=10)
 
+    titulo = ctk.CTkLabel(frame_titulo, text="AutoMessenger - Envio Automatizado", font=("Roboto", 16, "bold"))
+    titulo.pack(pady=10)
+
+    # Frame para seleção de arquivo
+    frame_selecao = ctk.CTkFrame(janela)
+    frame_selecao.pack(fill="x", padx=10, pady=5)
 
     # Label e Botão para selecionar o arquivo Excel
-    label_excel = tk.Label(frame_selecao, text="Arquivo Excel:")
-    label_excel.grid(row=1, column=0, pady=5, padx=5)
+    label_excel = ctk.CTkLabel(frame_selecao, text="Arquivo Excel:")
+    label_excel.grid(row=0, column=0, pady=5, padx=5, sticky="w")
 
-    entrada_excel = tk.Entry(frame_selecao, textvariable=caminho_excel, width=50, state='readonly')
-    entrada_excel.grid(row=1, column=1, padx=5)
+    entrada_excel = ctk.CTkEntry(frame_selecao, textvariable=caminho_excel, width=400)
+    entrada_excel.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
-    botao_excel = tk.Button(frame_selecao, text="Selecionar Excel", command=selecionar_excel)
-    botao_excel.grid(row=1, column=2, padx=5)
+    botao_excel = ctk.CTkButton(frame_selecao, text="Selecionar Excel", command=selecionar_excel)
+    botao_excel.grid(row=0, column=2, padx=5, pady=5)
+    
+    # Linha inicial para processamento
+    label_linha_inicial = ctk.CTkLabel(frame_selecao, text="Iniciar da linha:")
+    label_linha_inicial.grid(row=1, column=0, pady=5, padx=5, sticky="w")
 
-    # Botão para iniciar o processamento
-    botao_iniciar = tk.Button(janela, text="Iniciar Processamento", command=iniciar_processamento)
-    botao_iniciar.pack(pady=10)
+    entrada_linha_inicial = ctk.CTkEntry(frame_selecao, width=100)
+    entrada_linha_inicial.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+    entrada_linha_inicial.insert(0, "2")  # Valor padrão
+    
+    frame_selecao.grid_columnconfigure(1, weight=1)  # Fazer a coluna do meio expandir
 
-    # Botão para cancelar e fechar o programa
-    botao_cancelar = tk.Button(janela, text="Cancelar Processamento", command=cancelar_processamento)
-    botao_cancelar.pack(pady=5)
+    # Frame para botões de ação
+    frame_botoes = ctk.CTkFrame(janela)
+    frame_botoes.pack(fill="x", padx=10, pady=5)
 
-    # Botão para fechar o programa (desabilitado até o processamento terminar)
-    botao_fechar = tk.Button(janela, text="Fechar Programa", command=fechar_programa, state=tk.DISABLED)
-    botao_fechar.pack(pady=5)
+    # Botões para operações
+    botao_iniciar = ctk.CTkButton(frame_botoes, text="Iniciar Processamento", command=iniciar_processamento, fg_color="#28a745", hover_color="#218838")
+    botao_iniciar.pack(side="left", padx=5, pady=10, expand=True, fill="x")
+
+    botao_cancelar = ctk.CTkButton(frame_botoes, text="Cancelar Processamento", command=cancelar_processamento, fg_color="#dc3545", hover_color="#c82333")
+    botao_cancelar.pack(side="left", padx=5, pady=10, expand=True, fill="x")
+
+    botao_fechar = ctk.CTkButton(frame_botoes, text="Fechar Programa", command=fechar_programa, state="disabled", fg_color="#6c757d", hover_color="#5a6268")
+    botao_fechar.pack(side="left", padx=5, pady=10, expand=True, fill="x")
+    
+    botao_abrir_log = ctk.CTkButton(frame_botoes, text="Abrir Log", command=abrir_log, fg_color="#17a2b8", hover_color="#138496")
+    botao_abrir_log.pack(side="left", padx=5, pady=10, expand=True, fill="x")
+
+    # Frame para a barra de progresso
+    frame_progresso = ctk.CTkFrame(janela)
+    frame_progresso.pack(fill="x", padx=10, pady=5)
+    
+    label_progresso = ctk.CTkLabel(frame_progresso, text="Progresso:")
+    label_progresso.pack(side="left", padx=5)
+    
+    barra_progresso = ctk.CTkProgressBar(frame_progresso, variable=progresso, width=500)
+    barra_progresso.pack(side="left", padx=5, fill="x", expand=True)
+    barra_progresso.set(0)
+    
+    progresso_texto = ctk.CTkLabel(frame_progresso, text="0/0")
+    progresso_texto.pack(side="left", padx=5)
 
     # Frame para o log
-    frame_log = tk.Frame(janela)
-    frame_log.pack(pady=10, fill=tk.BOTH, expand=True)
+    frame_log = ctk.CTkFrame(janela)
+    frame_log.pack(pady=10, padx=10, fill="both", expand=True)
+
+    # Label para o log
+    label_log = ctk.CTkLabel(frame_log, text="Log de execução:")
+    label_log.pack(anchor="w", padx=5, pady=5)
 
     # Área de texto para o log com barra de rolagem
-    log_text = scrolledtext.ScrolledText(frame_log, wrap=tk.WORD, height=10, state=tk.DISABLED)
-    log_text.pack(fill=tk.BOTH, expand=True)
+    log_text = ctk.CTkTextbox(frame_log, wrap="word", height=250, width=650)
+    log_text.pack(fill="both", expand=True, padx=5, pady=5)
+    
+    # Configurar tags para cores
+    log_text.tag_config("vermelho", foreground="red")
+    log_text.tag_config("verde", foreground="green")
+    log_text.tag_config("azul", foreground="blue")
+    log_text.tag_config("timestamp", foreground="gray")
 
-    # Configurar as tags de cor para o log
-    configurar_tags_log()
+    # Inicializar o log com uma mensagem
+    atualizar_log("Bem-vindo ao AutoMessenger! Selecione um arquivo Excel e clique em 'Iniciar Processamento'.", cor="azul")
+    
+    # Rodapé
+    frame_rodape = ctk.CTkFrame(janela, fg_color="transparent")
+    frame_rodape.pack(fill="x", padx=10, pady=5)
+    
+    label_versao = ctk.CTkLabel(frame_rodape, text="v1.0 | Desenvolvido por Hugo L. Almeida - Equipe de TI", text_color="gray")
+    label_versao.pack(side="right", padx=5, pady=5)
     
     # Iniciar o loop da interface
     janela.mainloop()
