@@ -375,7 +375,9 @@ def mensagemPadrao():
         return
     
     # # Mensagem padrão
-    # mensagem = f"Boa tarde!  Espero que esteja bem. O contrato de experiência de {pessoa} vence em {data}. Gostaríamos de saber se haverá prorrogação.  Caso não tenhamos um retorno, consideraremos a prorrogação automática. Agradeço a atenção!"
+    # mensagem = f"Mensagem de Test\n"
+    # mensagem += " \n"
+    # mensagem += "Agradeçomos pela sua atenção e colaboração."
     
     mensagem = f"Prezado cliente,\n"
     mensagem += " \n"
@@ -533,13 +535,16 @@ def processar_dados(excel, linha_inicial):
     try:
         wb = openpyxl.load_workbook(caminho_excel)
         sheet = wb.active
-        total_linhas_excel = sheet.max_row - 1  # Subtrair 1 para o cabeçalho
+        total_linhas_excel = sheet.max_row - linha_inicial + 1  # Subtrair 1 para o cabeçalho
         atualizar_log(f"Total de linhas no Excel: {total_linhas_excel}")
     except Exception as e:
         atualizar_log(f"Erro ao obter o total de linhas do Excel: {str(e)}", cor="vermelho")
         total_linhas_excel = 0
 
     dados = ler_dados_excel(caminho_excel, linha_inicial)
+    if not dados:
+        atualizar_log("Nenhum dado para processar.", cor="vermelho")
+        return
     codigos, empresas, nome_contatos, nome_grupos = extrair_cod_nome_contatos_e_grupos(dados)
     
     # Configuração da barra de progresso
@@ -565,21 +570,22 @@ def processar_dados(excel, linha_inicial):
                 return 
             
             # Atualiza a barra de progresso em relação ao total do Excel
-            linha_atual_rel = linha_inicial - 2 + i
+            linha_atual = linha_inicial + i
             if total_linhas_excel > 0:
-                porcentagem = (linha_atual_rel / total_linhas_excel) * 100
-                porcentagem = min(100, porcentagem)  # Garantir que não passe de 100%
-                atualizar_progresso(porcentagem, f"Linha {linha_inicial + i} de {total_linhas_excel + 1}")
+                porcentagem = ((i + 1) / total_contatos) * 100
+                
+                atualizar_progresso(porcentagem, f"Linha {linha_atual} de {total_linhas_excel + linha_inicial - 1}")
+                
             else:
                 # Fallback se não conseguiu obter o total de linhas
                 porcentagem = ((i + 1) / total_contatos) * 100
                 atualizar_progresso(porcentagem, f"{i + 1}/{total_contatos}")
             
-            atualizar_log(f"\nProcessando linha {linha_inicial + i}/{total_linhas_excel + 1}: {codigo} - {empresa}: Contato: {nome_contato}, Grupo: {nome_grupo}\n", cor="azul")
+            atualizar_log(f"\nProcessando linha {linha_atual}/{total_linhas_excel + linha_inicial - 1}: {codigo} - {empresa}: Contato: {nome_contato}, Grupo: {nome_grupo}\n", cor="azul")
 
             # Gravar posição atual no log para recuperação
             with open(log_file_path, 'a', encoding='utf-8') as f:
-                f.write(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Processando código: {codigo}, empresa: {empresa}, linha Excel: {linha_inicial + i}\n")
+                f.write(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Processando código: {codigo}, empresa: {empresa}, linha Excel: {linha_atual}\n")
                 
             mensagem = mensagemPadrao()
                     
@@ -775,7 +781,7 @@ def processar_dados(excel, linha_inicial):
                 time.sleep(3)   
                 
         # Atualiza a barra de progresso para 100% ao finalizar
-        atualizar_progresso(100, f"Concluído - {total_linhas_excel + 1}/{total_linhas_excel + 1}")
+        atualizar_progresso(100, f"Concluído - {total_linhas_excel + linha_inicial - 1}/{total_linhas_excel + linha_inicial - 1}")
         with open(log_file_path, 'a', encoding='utf-8') as f:
             f.write(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✓ PROCESSAMENTO FINALIZADO COM SUCESSO!\n")
             
@@ -791,7 +797,8 @@ def processar_dados(excel, linha_inicial):
     
 # Função para atualizar a barra de progresso
 def atualizar_progresso(valor, texto=""):
-    progresso.set(valor)
+    # Normalizar o valor para o intervalo [0, 1] que a barra de progresso espera
+    progresso.set(valor / 100)
     progresso_texto.configure(text=texto)
     janela.update_idletasks()  # Atualiza a interface
     
