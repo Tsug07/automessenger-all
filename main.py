@@ -229,16 +229,16 @@ def focar_barra_mensagem_enviar(driver, mensagem):
                     return
                 # Agora vamos clicar no botão de enviar
                 # Primeiro, tentamos localizar o botão por XPath
-                # try:
-                #     botao_enviar = WebDriverWait(driver, 10).until(
-                #         EC.element_to_be_clickable((By.XPATH, '//*[@id="preview-root"]/div[2]/div[3]/div[3]/div[1]/button'))
-                #     )
-                #     botao_enviar.click()
-                #     atualizar_log("Botão de enviar clicado com sucesso.")
-                # except:
-                #     atualizar_log("\nNão foi possível clicar no botão de enviar por XPath. Tentando por Tab.\n", cor="vermelho")
+                try:
+                    botao_enviar = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, '//*[@id="preview-root"]/div[2]/div[3]/div[3]/div[1]/button'))
+                    )
+                    botao_enviar.click()
+                    atualizar_log("Botão de enviar clicado com sucesso.")
+                except:
+                    atualizar_log("\nNão foi possível clicar no botão de enviar por XPath. Tentando por Tab.\n", cor="vermelho")
                     
-                #     return False
+                    return False
                     
                 
                 
@@ -374,52 +374,34 @@ def mensagemPadrao():
         atualizar_log("Processamento cancelado!", cor="azul")
         return
     
-    # # Mensagem padrão
-    # mensagem = f"Mensagem de Test\n"
-    # mensagem += " \n"
-    # mensagem += "Agradeçomos pela sua atenção e colaboração."
-    
-    mensagem = f"Prezado cliente,\n"
+    mensagem = f"COMUNICADO IMPORTANTE: LIBERAÇÃO DO EMPRÉSTIMO CONSIGNADO (E-CONSIGNADO) PARA FUNCIONÁRIOS\n"
     mensagem += " \n"
-    mensagem += f"Estamos no período da entrega da Declaração do Imposto de Renda Pessoa Física (IRPF-2024). Para garantir o correto preenchimento e envio da sua declaração à Receita Federal, solicitamos que nos envie as informações necessárias até o dia 15/04/2025. Caso os documentos não sejam encaminhados até essa data, consideraremos que não há informações adicionais e providenciaremos a sua declaração com os dados disponíveis em nosso sistema. Dessa forma, asseguramos o cumprimento do prazo legal e evitamos multas e penalidades.\n"
+    mensagem += f"Prezados clientes,\n"
     mensagem += " \n"
-    mensagem += f"Se optar por preencher a sua própria declaração, pedimos que nos informe dentro do mesmo prazo para evitar envios duplicados.\n"
+    mensagem += f"O governo federal liberou a modalidade de empréstimo consignado (e-consignado) para os funcionários, com desconto diretamente na folha de pagamento. Essa medida oferece aos trabalhadores acesso a crédito com taxas de juros reduzidas, facilitando o pagamento por meio do desconto automático em seus salários.\n"
     mensagem += " \n"
-    mensagem += "Segue abaixo a relação dos documentos necessários para a elaboração da sua declaração:\n"
+    mensagem += f"O que é o e-consignado?\n"
+    mensagem += f"O e-consignado é uma linha de crédito pessoal em que as parcelas são descontadas diretamente da folha de pagamento do trabalhador. Essa modalidade oferece juros mais baixos em relação a outras opções de crédito, pois o pagamento é garantido pelo vínculo empregatício.\n"
     mensagem += " \n"
-    mensagem += "Documentos pessoais (Título de Eleitor, CPF, comprovante de residência e dados bancários);\n"
+    mensagem += f"O que as empresas precisam saber?\n"
+    mensagem += f"• Contratação pelo funcionário: O processo de solicitação e contratação do empréstimo é realizado diretamente pelo trabalhador, por meio da sua CTPS digital, sem necessidade de intermediários.\n"
+    mensagem += f"• Desconto na folha de pagamento: A empresa deve realizar o desconto conforme os valores acordados no contrato do empréstimo.\n"
+    mensagem += f"• Limite de comprometimento da renda: O valor das parcelas não pode ultrapassar 35% da remuneração do trabalhador, conforme a legislação vigente.\n"
+    mensagem += f"• Informação das contratações: As empresas receberão as informações sobre os empréstimos contratados através do DET (Domicílio Eletrônico Trabalhista).\n"
     mensagem += " \n"
-    mensagem += "Informe de rendimentos (fornecido pela empresa);\n"
+    mensagem += f"Prazos e regulamentação\n"
+    mensagem += f"O e-consignado já está disponível e pode ser contratado pelos trabalhadores conforme as regras estabelecidas pelo governo.\n"
+    mensagem += f"Reforçamos a importância de que a empresa garanta que o desconto em folha seja realizado corretamente, evitando inconsistências que possam gerar problemas futuros.\n"
     mensagem += " \n"
-    mensagem += "Documentos pessoais dos dependentes (CPF obrigatório, e-mail, celular e comprovante de residência);\n"
+    mensagem += f"Honorários para Gestão do E-Consignado\n"
+    mensagem += f"Devido a toda tramitação e responsabilidade envolvidas na operacionalização desse novo serviço, informamos que serão cobrados honorários à parte por colaborador que contratar o e-consignado, conforme orientação que aguardamos do nosso conselho e da associação dos contadores. Os valores correspondentes a esses honorários serão informados oportunamente.\n"
     mensagem += " \n"
-    mensagem += "Informe de rendimentos financeiros e de aplicações ou extrato de aplicações (fornecidos pelo banco);\n"
+    mensagem += f"Para mais informações, estamos à disposição para orientá-los!\n"
     mensagem += " \n"
-    mensagem += "Comprovantes de despesas médicas (nome, endereço, CPF ou CNPJ do prestador);\n"
-    mensagem += " \n"
-    mensagem += "Comprovantes de despesas com ensino;\n"
-    mensagem += " \n"
-    mensagem += "Extrato de Previdência Privada;\n"
-    mensagem += " \n"
-    mensagem += "Documentação do Plano de Saúde;\n"
-    mensagem += " \n"
-    mensagem += "Documentação de imóveis e veículos (inclusive financiados);\n"
-    mensagem += " \n"
-    mensagem += "Recibos de pagamento ou recebimento de aluguel;\n"
-    mensagem += " \n"
-    mensagem += "Recibos de doações;\n"
-    mensagem += " \n"
-    mensagem += "Documentação de consórcios contemplados ou não;\n"
-    mensagem += " \n"
-    mensagem += "Senha da conta gov.br.\n"
-    mensagem += " \n"
-    mensagem += "Caso tenha dúvidas, nossa equipe de especialistas está à disposição para orientá-lo.\n"
-    mensagem += " \n"
-    mensagem += "Atenciosamente,\n"
-    mensagem += "Equipe Canella e Santos"
+    mensagem += f"Atenciosamente,\n"
+    mensagem += f"Equipe Canella e Santos"
     
     return mensagem
-
 
 def ler_dados_excel(caminho_excel, linha_inicial=2):
     try:
