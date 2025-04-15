@@ -259,7 +259,7 @@ def focar_barra_mensagem_enviar(driver, mensagem):
                     return False                
 
                 try:
-                    # Espera pelos resultados da busca
+                    # Espera pelo modal de confirmação
                     WebDriverWait(driver, 5).until(
                         EC.presence_of_element_located((By.XPATH, '/html/body/div[4]'))
                 )
@@ -401,7 +401,7 @@ def focar_pagina_geral(driver):
         
         elemento.click()
         atualizar_log("Clicado no contato geral.")
-        driver.refresh()  # Recarrega a página
+        
         time.sleep(5)  # Espera para a página carregar
         return True
     except Exception as e:
