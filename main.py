@@ -401,7 +401,7 @@ def focar_pagina_geral(driver):
         
         elemento.click()
         atualizar_log("Clicado no contato geral.")
-        
+        driver.refresh()
         time.sleep(5)  # Espera para a página carregar
         return True
     except Exception as e:
